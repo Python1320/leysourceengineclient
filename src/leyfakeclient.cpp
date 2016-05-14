@@ -323,7 +323,7 @@ bool HandleMessage(bf_read &msg, int type)
 
 			senddata.WriteUBitLong(8, 6);
 			senddata.WriteLong(netchan->m_iServerCount);
-			senddata.WriteLong(-2030366758);//clc_ClientInfo crc
+			senddata.WriteLong(518790445);//clc_ClientInfo crc
 			senddata.WriteOneBit(1);//ishltv
 			senddata.WriteLong(1337);
 
@@ -503,7 +503,7 @@ bool HandleMessage(bf_read &msg, int type)
 		delete[] data;
 
 
-		printf("Received svc_CreateStringTable, name: %s | maxentries: %i | size: %d | entries: %i | compressed: %i\n", name, maxentries, size, entries, compressed);
+		printf("Received svc_CreateStringTable, name: %s | maxentries: %i | size: %d | entries: %i | compressed: %i | bits: %i\n", name, maxentries, size, entries, compressed, bits);
 
 		return true;
 	}
@@ -1228,7 +1228,7 @@ int networkthink()
 
 	if (!strstr(serverip, charip))
 	{
-		printf("ip mismatch\n");
+		printf("ip mismatch??\n");
 		return 0;
 	}
 
@@ -1265,7 +1265,7 @@ int networkthink()
 
 
 		recvdata.StartReading(netrecbuffer, uncompressedSize, 0);
-		printf("UNCOMPRESSED\n");
+		printf(".");
 
 
 		delete[] tmpbuffer;
