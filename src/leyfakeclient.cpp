@@ -14,7 +14,7 @@
 #include "osw/ISteamUser017.h"
 
 
-CSteamAPILoader g_SteamAPILoader;
+CSteamAPILoader *g_SteamAPILoader = 0;
 // Client handles
 HSteamPipe g_hSteamPipe;
 HSteamUser g_hSteamUser;
@@ -1686,7 +1686,9 @@ int parseip(const char*serverip_and_port, char*& ip, int& port)
 
 bool InitSteam()
 {
-	CreateInterfaceFn fnApiInterface = g_SteamAPILoader.GetSteam3Factory();
+	g_SteamAPILoader = new CSteamAPILoader;
+
+	CreateInterfaceFn fnApiInterface = g_SteamAPILoader->GetSteam3Factory();
 
 
 	if (!fnApiInterface)
@@ -1731,7 +1733,7 @@ int main(int argc, const char *argv[])
 
 	unsigned short clientport = atoi(argv[2]);
 
-	if (strnlen(argv[3], 2) != 0)
+	if (argv[3] && strnlen(argv[3], 2) != 0)
 	{
 		strcpy(nickname, argv[3]);
 	}
@@ -1739,7 +1741,7 @@ int main(int argc, const char *argv[])
 		strcpy(nickname, "leysourceengineclient");
 	}
 
-	if (strnlen(argv[4], 2) != 0)
+	if (argv[4] && strnlen(argv[4], 2) != 0)
 	{
 		strcpy(password, argv[4]);
 	}
