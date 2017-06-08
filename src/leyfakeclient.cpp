@@ -225,6 +225,25 @@ unsigned char steamkey_encryptionkey[STEAM_KEYSIZE];
 unsigned char serversteamid[STEAM_KEYSIZE];
 int vacsecured = 0;
 
+
+void hexdump(void *ptr, int buflen) {
+	unsigned char *buf = (unsigned char*)ptr;
+	int i, j;
+	for (i = 0; i<buflen; i += 16) {
+		printf("%06x: ", i);
+		for (j = 0; j<16; j++)
+			if (i + j < buflen)
+				printf("%02x ", buf[i + j]);
+			else
+				printf("   ");
+		printf(" ");
+		for (j = 0; j<16; j++)
+			if (i + j < buflen)
+				printf("%c", isprint(buf[i + j]) ? buf[i + j] : '.');
+		printf("\n");
+	}
+}
+
 bool HandleMessage(bf_read &msg, int type)
 {
 
@@ -239,9 +258,9 @@ bool HandleMessage(bf_read &msg, int type)
 		char dcreason[1024];
 		msg.ReadString(dcreason, sizeof(dcreason));
 		printf("Disconnected: %s\n", dcreason);
-		printf("Reconnecting in 100 ms ...");
+		printf("Reconnecting in 5000 ms ...");
 
-		_sleep(100);
+		_sleep(5000);
 		NET_Reconnect();
 		return true;
 	}
@@ -323,7 +342,7 @@ bool HandleMessage(bf_read &msg, int type)
 
 			senddata.WriteUBitLong(8, 6);
 			senddata.WriteLong(netchan->m_iServerCount);
-			senddata.WriteLong(-2030366758);//clc_ClientInfo crc
+			senddata.WriteLong(518790445);//clc_ClientInfo crc
 			senddata.WriteOneBit(1);//ishltv
 			senddata.WriteLong(1337);
 
@@ -483,6 +502,12 @@ bool HandleMessage(bf_read &msg, int type)
 		int bits = msg.ReadVarInt32();
 		int userdata = msg.ReadOneBit();
 
+		//if (m_bUserDataFixedSize)
+		//{
+		//	buffer.WriteUBitLong(m_nUserDataSize, 12);
+		//	buffer.WriteUBitLong(m_nUserDataSizeBits, 4);
+		//}
+
 		if (userdata == 1)
 		{
 			int userdatasize = msg.ReadUBitLong(12);
@@ -492,18 +517,47 @@ bool HandleMessage(bf_read &msg, int type)
 
 		int compressed = msg.ReadOneBit();
 
-		if (bits < 1)
-			return true;
+		if (bits < 1) return true;
 
-		char* data = new char[bits];
+		unsigned int sz = (bits / 8) + 2;
 
+		unsigned char* data = new unsigned char[sz*8]; //TODO: why is 8x the space required. (heap corruption otherwise)
 
 		msg.ReadBits(data, bits);
+		bool really_compressed = false;
+		unsigned int actual_size;
+		CLZSS s;
+		printf("\n");
+		{
+			unsigned int remaining = sz;
+			unsigned char* ptr = data;
+			
+			ptr += + 8; // unknown data
+
+			remaining -= 8;
+			really_compressed = s.IsCompressed(ptr);
+			actual_size = really_compressed?s.GetActualSize(ptr):0;
+			if (really_compressed) {
+				unsigned char* data_dec = new unsigned char[actual_size];
+
+				s.Uncompress(ptr, data_dec);
+
+				// probably reuses the substring system used by old stringtable implementation. Shift the data by a bit or two to see the first entry of modelprecache for example.
+				hexdump(data_dec, actual_size);
+
+				delete[] data_dec;
+				printf("\n");
+			}
+		}
+
+		hexdump(data, bits / 8);
+		
 
 		delete[] data;
 
 
-		printf("Received svc_CreateStringTable, name: %s | maxentries: %i | size: %d | entries: %i | compressed: %i\n", name, maxentries, size, entries, compressed);
+		printf("Received svc_CreateStringTable, name: %s | maxentries: %i | size: %d | entries: %i | compressed: %i,%s,%i | "							"bits: %i (%i bytes)\n", 
+												name,		maxentries,		 size,		 entries,	compressed, really_compressed?"y":"n", actual_size, bits,bits/8);
 
 		return true;
 	}
@@ -1208,6 +1262,7 @@ int HandleConnectionLessPacket(char*ip, short port, int connection_less, bf_read
 
 
 	}
+	return 0;
 }
 int last_packet_received = 0;
 
@@ -1228,7 +1283,7 @@ int networkthink()
 
 	if (!strstr(serverip, charip))
 	{
-		printf("ip mismatch\n");
+		printf("ip mismatch??\n");
 		return 0;
 	}
 
@@ -1265,7 +1320,7 @@ int networkthink()
 
 
 		recvdata.StartReading(netrecbuffer, uncompressedSize, 0);
-		printf("UNCOMPRESSED\n");
+		printf(".");
 
 
 		delete[] tmpbuffer;
@@ -1656,19 +1711,22 @@ bool InitSteam()
 
 	if (!(clientaudio = (IClientAudio *)clientengine->GetIClientAudio(g_hSteamUser, g_hSteamPipe, CLIENTAUDIO_INTERFACE_VERSION)))
 		return false;
-
+	
 	return true;
 }
 
 int main(int argc, const char *argv[])
 {
+#ifndef _LINUX
+	_CrtSetDbgFlag(_CRTDBG_CHECK_ALWAYS_DF);
+#endif
 
 	if (!argv[1] || !argv[2] || !argv[3] )
 	{
 		printf("Invalid Params: server clientport nickname [password]\n");
 		return 0;
 	}
-
+	
 	serverip = new char[50];
 
 	parseip(argv[1], serverip, serverport);//and this is the point where you call me a retard for not using strtok
